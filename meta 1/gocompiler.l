@@ -1,0 +1,174 @@
+%option yylineno
+%{
+  /* GRUPO: Ana Beatriz Marques(2018274233) Barbara Gonçalves(2018295452)*/
+    #include <stdio.h>
+  	#include <string.h>
+#define DEBUG true
+
+
+
+  int lex_debug=0;
+  void printlex(const char*);
+  void printlexlit(const char* token,const char* text);
+  int line = 1;
+  int column = 1;
+  int firstLine;
+  int firstLine_c;
+  int firstLine_s;
+  int firstColumn;
+  int firstColumn_c;
+  int firstColumn_s;
+  char buffer[100] = "";
+   int errorflag;
+int flag;
+%}
+
+
+SEMIC ";"
+COMMA ","
+BLANKID "_"
+ASSIGN "="
+STAR "*"
+DIV "/"
+MUNUS "-"
+PLUS "+"
+EQ "=="
+GE ">="
+GT ">"
+LBRACE "{"
+LE "<="
+LPAR "("
+LSQ "["
+LT "<"
+MOD "%"
+NE "!="
+NOT "!"
+AND "&&"
+OR "||"
+RBRACE "}"
+RPAR ")"
+RSQ "]"
+PACKAGE "package"
+RETURN "return"
+ELSE "else"
+FOR "for"
+IF "if"
+VAR "var"
+INT "int"
+FLOAT32 "float32"
+BOOL "bool"
+STRING "string"
+PRINT "fmt.Println"
+PARSEINT "strconv.Atoi"
+FUNC "func"
+CMDARGS "os.Args"
+
+RESERVED (break|default|interface|select|case|defer|go|map|struct|chan|goto|switch|const|fallthrough|range|type|continue|import|"++"|"--")
+letter (_|[A-Z]|[a-z])
+number [0-9]
+decimal_lit 		[0-9]+       
+octal_lit			0[0-7]+
+hex_lit				0[xX][0-9A-Fa-f]+
+
+ID {letter}({letter}|{number})*
+INTLIT {decimal_lit}|{hex_lit}|{octal_lit}
+exp (E|e)("+"|"-")?{INTLIT}
+REALLIT ({INTLIT}"."{INTLIT}?{exp}?|"."{INTLIT}{exp}?|{INTLIT}{exp})
+strlit ([^\n\r\\\"]|{escape})*	
+escape \\n|\\f|\\r|\\\\|\\\"|\\t
+carriagereturn      "\r"
+whitespace          " "|"\t"
+lineterminator "\n"|"\r\n"	
+
+%X COMMENT STRLIT SEMICOLON
+%%
+{RESERVED}					{printlexlit("RESERVED",yytext); column += yyleng;}
+0[0-7]*([8|9]+[0-7]*)+   		{firstLine = yylineno; firstColumn = column;  printf("Line %d, column %d: invalid octal constant (%s)\n",firstLine, column, yytext);column += yyleng;}
+{INTLIT} 					 {printlexlit("INTLIT",yytext);column += yyleng; BEGIN SEMICOLON;}
+{REALLIT}		  {printlexlit("REALLIT",yytext);column += yyleng; BEGIN SEMICOLON;}
+{SEMIC}				{printlex("SEMICOLON"); column += yyleng;}
+{COMMA} 					{printlex("COMMA"); column += yyleng;}
+{BLANKID} 					{printlex("BLANKID"); column += yyleng;}
+{ASSIGN}  					{printlex("ASSIGN"); column += yyleng;}
+{STAR}						{printlex("STAR"); column += yyleng;}
+{DIV}						{printlex("DIV"); column += yyleng;}
+{MUNUS}					{printlex("MINUS"); column += yyleng;}
+{PLUS} 						{printlex("PLUS"); column += yyleng;}
+{EQ} 							{printlex("EQ"); column += yyleng;}
+{GE}							{printlex("GE"); column += yyleng;}
+{GT}							{printlex("GT"); column += yyleng;}
+{LBRACE}					{printlex("LBRACE"); column += yyleng;}
+{LE} 							{printlex("LE"); column += yyleng;}
+{LPAR} 						{printlex("LPAR"); column += yyleng;}
+{LSQ} 						{printlex("LSQ"); column += yyleng;}
+{LT}							{printlex("LT"); column += yyleng;}
+{MOD} 						{printlex("MOD"); column += yyleng;}
+{NE} 							{printlex("NE"); column += yyleng;}
+{NOT} 						{printlex("NOT"); column += yyleng;}
+{AND} 						{printlex("AND"); column += yyleng;}
+{OR}							{printlex("OR"); column += yyleng;}
+{RBRACE}					{printlex("RBRACE"); column += yyleng;BEGIN SEMICOLON;}
+{RPAR} 						{printlex("RPAR"); column += yyleng;BEGIN SEMICOLON;}
+{RSQ}						{printlex("RSQ"); column += yyleng;BEGIN SEMICOLON;}
+{PACKAGE} 					{printlex("PACKAGE"); column += yyleng;}
+{RETURN} 					{printlex("RETURN"); column += yyleng; BEGIN SEMICOLON;}
+{ELSE} 						{printlex("ELSE"); column += yyleng;}
+{FOR} 						{printlex("FOR"); column += yyleng;}
+{IF}							{printlex("IF"); column += yyleng;}
+{VAR} 						{printlex("VAR"); column += yyleng;}
+{INT} 						{printlex("INT"); column += yyleng;}
+{FLOAT32} 					{printlex("FLOAT32"); column += yyleng;}
+{BOOL} 						{printlex("BOOL"); column += yyleng;}
+{STRING}					{printlex("STRING"); column += yyleng;}
+{PRINT}						{printlex("PRINT"); column += yyleng;}
+{PARSEINT} 					{printlex("PARSEINT"); column += yyleng;}
+{FUNC} 						{printlex("FUNC"); column += yyleng;}
+{CMDARGS}					{printlex("CMDARGS"); column += yyleng;}
+{ID}	 						{printlexlit("ID",yytext);column += yyleng; BEGIN SEMICOLON;}
+
+"/*"							{firstLine_c = yylineno; firstColumn_c = column; column += yyleng; BEGIN COMMENT;}
+"//"[^\n\r]*				{column = 1;}
+<COMMENT>\n|\r\n|\r			{column = 1;}
+<COMMENT><<EOF>>			{printf("Line %d, column %d: unterminated comment\n", firstLine_c, firstColumn_c);BEGIN 0;}
+<COMMENT>"*/"			   {column += yyleng;BEGIN 0;}
+<COMMENT>.					{column += yyleng;}
+
+\"													{BEGIN STRLIT;strcpy(buffer,yytext); firstLine_s = yylineno; firstColumn_s = column; column += yyleng; errorflag=0; }
+<STRLIT>\"											{strcat(buffer,"\""); column += yyleng; if(errorflag==0) { printlexlit("STRLIT",buffer);BEGIN SEMICOLON;} else BEGIN 0;}
+<STRLIT>\n|\r\n|\r             			{ printf("Line %d, column %d: unterminated string literal\n",firstLine_s, firstColumn_s); line ++; column = 1; BEGIN 0;}
+<STRLIT><<EOF>>										{ printf("Line %d, column %d: unterminated string literal\n",firstLine_s, firstColumn_s); BEGIN 0;}
+<STRLIT>{strlit}									{strcat(buffer,yytext); column += yyleng;}
+<STRLIT>\\(.?)							{printf("Line %d, column %d: invalid escape sequence (%s)\n", firstLine_s,column, yytext); errorflag=1; column += yyleng;}
+
+
+<SEMICOLON>{whitespace}								{column += yyleng;}
+<SEMICOLON>";"										{printlex("SEMICOLON"); column += yyleng; BEGIN 0;}
+<SEMICOLON>\n|\r\n							{printlex("SEMICOLON");line ++; column = 1; BEGIN 0;}
+<SEMICOLON>"//".*					{printlex("SEMICOLON"); BEGIN 0;}
+<SEMICOLON>"/*"						{ column += yyleng; BEGIN COMMENT;}
+<SEMICOLON><<EOF>>									{printlex("SEMICOLON");BEGIN 0;}
+<SEMICOLON>""/.									    {column += yyleng;BEGIN 0;}
+
+
+
+{whitespace} {column += yyleng;}
+{carriagereturn} {column += yyleng;}
+{lineterminator}*	{line ++; column = 1;}
+. {firstLine = yylineno; firstColumn = column;  printf("Line %d, column %d: illegal character (%s)\n",firstLine, column, yytext);column += yyleng;}
+%%
+void printlex(const char* token){
+ 	if(lex_debug) printf("%s\n",token);
+}
+void printlexlit(const char* token,const char* text){
+	 if(lex_debug) printf("%s(%s)\n",token,text);
+}
+
+int main(int argc, char **argv) {
+  if(argc > 1 && strcmp(argv[1], "-l") == 0) lex_debug= 1;
+     yylex();
+    return 0;
+}
+
+int yywrap(){
+return 1;
+}
